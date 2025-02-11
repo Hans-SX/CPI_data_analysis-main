@@ -14,6 +14,7 @@ print('''\n
 
 import CPI as cpi
 import numpy as np
+from numpy import unravel_index
 from scipy.interpolate import interpn as interp
 import multiprocessing as mp
 import matplotlib.pyplot as plt
@@ -28,7 +29,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--targ_dp', type=str)
 args = parser.parse_args()
 datapath = joinDir(os.getcwd(), os.pardir, args.targ_dp, 'data')
-outpath = joinDir(os.getcwd(), os.pardir, args.targ_dp, 'out')
+outpath = joinDir(os.getcwd(), os.pardir, args.targ_dp, OUTPUT_DIR)  # OUTPUT_DIR is from the config.py
 outDir, armAfiles, armBfiles = cpi.setDirectories_twocams(stdData=STD_PATH, stdOut=STD_PATH, timeTag=TT_BOOL, dataPath=datapath, outPath=outpath, armA=armA_PATH, armB=armB_PATH)
 A, dpA = cpi.ReadAndBin_onecam(
                armAfiles, outDir,
@@ -55,6 +56,7 @@ if __name__=="__main__":
     rangeA= (np.arange(NA)-(NA-1)/2)*dpA
     rangeB= (np.arange(NB)-(NB-1)/2)*dpB
     counter = 0
+    maxint = {"val": [], "idx":[]}
     # gridYA, gridXA, gridYB, gridXB = np.meshgrid(rangeA, rangeA, rangeB, rangeB)
     for z in REFOC:
         cpi.Print("Refocusing","{} of {}".format(counter+1,len(REFOC)))
@@ -165,6 +167,10 @@ if __name__=="__main__":
             plt.close("all")
         print("Time elapsed: {:3f}".format(cpi.Time()-startRef))
         counter +=1
+        maxint["val"].append(refVec.max())
+        maxint["idx"].append(unravel_index(refVec.argmax(), refVec.shape))
+    name_maxint = OUTPUT_DIR + "_maxint.npy"
+    np.save(os.path.join(outDir, name_maxint), maxint, allow_pickle=True)
     cpi.PrintSectionClose()
-    print("Time elapsed for refocusing: {:3f}".format(cpi.Time()-start))   
+    print("Time elapsed for refocusing: {:3f}".format(cpi.Time()-start))
 
