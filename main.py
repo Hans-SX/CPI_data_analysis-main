@@ -56,7 +56,6 @@ if __name__=="__main__":
     rangeA= (np.arange(NA)-(NA-1)/2)*dpA
     rangeB= (np.arange(NB)-(NB-1)/2)*dpB
     counter = 0
-    maxint = {"val": [], "idx":[]}
     # gridYA, gridXA, gridYB, gridXB = np.meshgrid(rangeA, rangeA, rangeB, rangeB)
     for z in REFOC:
         cpi.Print("Refocusing","{} of {}".format(counter+1,len(REFOC)))
@@ -167,10 +166,7 @@ if __name__=="__main__":
             plt.close("all")
         print("Time elapsed: {:3f}".format(cpi.Time()-startRef))
         counter +=1
-        maxint["val"].append(refVec.max())
-        maxint["idx"].append(unravel_index(refVec.argmax(), refVec.shape))
-    name_maxint = OUTPUT_DIR + "_maxint.npy"
-    np.save(os.path.join(outDir, name_maxint), maxint, allow_pickle=True)
+
     cpi.PrintSectionClose()
     print("Time elapsed for refocusing: {:3f}".format(cpi.Time()-start))
 
