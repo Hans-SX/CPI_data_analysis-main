@@ -12,12 +12,10 @@ Created on Wed May 11 16:20:42 2022
 import numpy as np
 from datetime import datetime
 import os, sys, time
-from skimage import io
 from os.path import join as joinDir
 import matplotlib.pyplot as plt
 import shutil
 # from scipy.interpolate.interpn import interpn as interp
-
 
 
 
@@ -41,10 +39,6 @@ def RefocusSection(corrFun, transf, refArray, dpA, dpB, maxInt=False, correc=Fal
         newPts  = np.array([[[i,j,k,l] for k in rangeSum for l in rangeSum] for i in rangeRef for j in rangeRef])
         def RefocusSinglePixel(newPoints):
             return np.sum(interp(points, corrFun, newPoints))
-        
-        
-        
-        
         
 
 def ComputeCorrelations(A, B, differential=False):
@@ -133,100 +127,6 @@ def BinInfo_onecam(Na, binA, dp, arm):
         print("["+arm+"_bin]", '[{}]'.format(NA))
         return NA, dpA
     
-def ReadAndBin(filename, outDir,
-               Na, ax, ay, binA,
-               Nb, bx, by, binB,
-               dp, dtype='float32'):
-    start = Time()
-    PrintSectionInit('Loading Data...')
-    NA, NB, dpA, dpB = BinInfo(Na, Nb, binA, binB, dp)
-    Nfile     = len(filename)
-    numExc    = 0
-    Print("[N FILES]", Nfile)
-    A = np.zeros((NA*NA,1), dtype=dtype)
-    B = np.zeros((NB*NB,1), dtype=dtype)
-    Ntot = 0
-    for ifile in range(Nfile):
-        try:
-            data = io.imread(filename[ifile])
-            nPages = data.shape[0]
-            Ntot = Ntot + nPages        
-            if ifile==0:
-                pkPlotDataOverview(data,outDir,ax,ay,bx,by,Na,Nb)
-            Print("[PROGRESS]", '{}/{}'.format(ifile+1, Nfile))
-            print("            shape: {} | dtype: {} | min: {} | max: {}".format(
-                data.shape, data.dtype, np.min(data), np.max(data)))
-            binnedA = bin_ndarray(
-                data[:,ay:ay+Na,ax:ax+Na],new_shape=(nPages,NA,NA), operation='mean')
-            binnedB = bin_ndarray(
-                data[:,by:by+Nb,bx:bx+Nb],new_shape=(nPages,NB,NB), operation='mean')
-            A = np.append(A, (binnedA.reshape(nPages,NA*NA)).T, axis=1)
-            B = np.append(B, (binnedB.reshape(nPages,NB*NB)).T, axis=1)
-            del(data)
-        except ValueError:
-            numExc += 1
-            print("{} invalid file(s)".format(numExc))
-            Print("[N FILES]", Nfile - numExc)
-            pass
-    A = A[:,1:]
-    B = B[:,1:]
-    stop = Time()
-    Print("[N_TOT]", Ntot)
-    Print("[A]", " shape: {} | dtype: {} | min: {} | max: {}".format(A.shape, A.dtype, np.min(A), np.max(A)))
-    Print("[B]", " shape: {} | dtype: {} | min: {} | max: {}".format(B.shape, B.dtype, np.min(B), np.max(B)))
-    Print("[Elapsed Time]", '{:.3f} s'.format(stop-start))
-    PrintSectionClose()
-    return A, B, dpA, dpB
-
-def ReadAndBin_onecam(filename, outDir,
-               Na, binA,
-               dp, dtype='float32', arm='spa'):
-    """
-    bin_ndarry: only take a square shape input (4000, 310, 310)
-    NA = Na/binA, needs to be an integer.
-    """
-    start = Time()
-    PrintSectionInit('Loading Data...')
-    NA, dpA = BinInfo_onecam(Na, binA, dp, arm)
-    Nfile     = len(filename)
-    numExc    = 0
-    print("[N FILES]", Nfile)
-    A = np.zeros((NA*NA,1), dtype=dtype)
-    Ntot = 0
-    for ifile in range(Nfile):
-        try:
-            data = io.imread(filename[ifile])
-            if data.shape[1] > data.shape[2]:
-                diff_half = int((data.shape[1] - data.shape[2])/2)
-                data = data[:, diff_half:Na+diff_half, :Na]
-            elif data.shape[1] < data.shape[2]:
-                diff_half = int((data.shape[2] - data.shape[1])/2)
-                data = data[:, :Na, diff_half:Na+diff_half]
-            nPages = data.shape[0]
-            Ntot = Ntot + nPages
-            if ifile==0:
-                pkPlotDataOverview_onecam(data,outDir,dp,arm)
-            Print("[PROGRESS]", '{}/{}'.format(ifile+1, Nfile))
-            print("            shape: {} | dtype: {} | min: {} | max: {}".format(
-                data.shape, data.dtype, np.min(data), np.max(data)))
-            
-            binnedA = bin_ndarray(
-                data, new_shape=(nPages,NA,NA), operation='mean')
-            A = np.append(A, (binnedA.reshape(nPages,NA*NA)).T, axis=1)
-            del(data)
-        except ValueError:
-            numExc += 1
-            print("{} invalid file(s)".format(numExc))
-            Print("[N FILES]", Nfile - numExc)
-            pass
-    A = A[:,1:]
-    stop = Time()
-    Print("[N_TOT]", Ntot)
-    Print("["+arm+"]", " shape: {} | dtype: {} | min: {} | max: {}".format(A.shape, A.dtype, np.min(A), np.max(A)))
-    Print("[Elapsed Time]", '{:.3f} s'.format(stop-start))
-    PrintSectionClose()
-    return A, dpA
-
 def readConfig():
     PrintSectionInit('Reading parameters from config...')
     file = open("config.py")

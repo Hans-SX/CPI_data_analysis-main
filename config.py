@@ -9,37 +9,29 @@ TT_BOOL = False
 
 #   Definition of folders
 DATA_DIR   = ""
-OUTPUT_DIR = "1_angBin2"
+OUTPUT_DIR = ""
 G2_DIR     = ""
 
-# Cordinates for data cropping
-Na = 250;  ax = 208;    ay = 275
-Nb = 360;  bx = 120;    by = 1231
-
 # Binning
-(binA, binB)=(2, 2)
-dp = 6.5
+binA, binB = 2, 2
+dpA, dpB   = 6.5*4, 6.5*4
 # REFOCUSING
-Ma = 4.2
-Mb = 0.32
+M_ratio = range(1, 21, 1)
+
 maxInt = False
 
 # Array of planes to be refocused
-REFOC = range(28000, 30000, 100)
-# REFOC = range(30600, 31650, 50)
-# REFOC = [28900, 29000, 29100, 30900, 31000, 31100]
-# REFOC = [29000, 29100]
+REFOC = range(45, 127, 2)
 
-# Do you want differential?
-DIFF_BOOL = True  # Previously False.
-
-def transf(z):
+def transf(z, M_ratio):
     from numpy import array as npArray
-    f=30000.
+    f=26670.
+    # f=30000.
     return npArray([
-        [-f/z*Ma,(f/z-1)*Ma],
-        [0         ,       -Mb]
+        [- 1, - z/f],
+        [0         ,       -1/M_ratio * dpA * binA /dpB /binB]
         ])
+
 
 # Do you want to apply the correction term?
 CORREC_BOOL = False
