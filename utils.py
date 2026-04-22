@@ -115,27 +115,32 @@ def robust_gaussian_fit(x_data, y_data, verbose=False):
         print("All fitting attempts failed")
     return None
 
-def _plt(refVec, z, mr, path):
+def _plt(refVec, z, mr, path, ind):
     fig = plt.figure()
     plt.imshow(refVec, cmap='gray')
-    plt.title("Refocused image of magnification ratio = "+ str(round(mr, 3)) )
+    # plt.title("Refocused image of magnification ratio = "+ str(round(mr, 3)) )
+    plt.title("Refocused image at "+ str(round(z, 3)) + ' mm' )
     plt.colorbar()
-    fig.savefig(join(path, f"refocused_z_{round(z)}_mr_{mr}.png"), dpi='figure',transparent=False)
+    fig.savefig(join(path, str(ind + 1) + f"_refocused_z_{round(z, 3)}_mr_{mr}.png"), dpi='figure',transparent=False)
     plt.close("all")
 
-def plt_sigma(M_ratio, sigma, z, path, cyc):
-    save_path = join(path, 'sigma_plots')
+def plt_sigma(M_ratio, sigma, z, path, cyc, axis='x'):
+    save_path = join(path, 'sigma_plots', axis)
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     fig = plt.figure()
-    plt.scatter(M_ratio, sigma, marker='o')
-    plt.xlabel("Magnification Ratio")
+    # plt.scatter(M_ratio, sigma, marker='o')
+    # plt.xlabel("Magnification Ratio")
+    plt.scatter(z, sigma, marker='o')
+    plt.xlabel("Refocused position (mm)")
     plt.ylabel("Sigma")
-    plt.title("Width of Each Ratio")
-    fig.savefig(join(save_path, f"{cyc}_sigma_z_{round(z)}.png"), dpi='figure',transparent=False)
+    # plt.title("Width of Each Ratio")
+    plt.title("Width of Each position")
+    # fig.savefig(join(save_path, f"{cyc}_sigma_z_{round(z)}.png"), dpi='figure',transparent=False)
+    fig.savefig(join(save_path, f"{cyc}_sigma_z_{round(M_ratio, 3)}.png"), dpi='figure',transparent=False)
     plt.close("all")
 
-def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, maxInt=None):
+def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind, maxInt=None):
     # cpi.Print("Refocusing","{} of {}".format(counter+1,len(M_ratio)))
     # cpi.Print("Refocusing","{} of {}".format(counter+1,len(REFOC)))
     matrix  = transf(z, mr)
@@ -156,7 +161,7 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, maxInt=None):
         [[matrix[0,0],0,matrix[0,1],0],
          [0,matrix[0,0],0,-matrix[0,1]],
          [matrix[1,0],0,matrix[1,1],0],
-         [0,matrix[1,0],0,matrix[1,1]]]
+         [0,matrix[1,0],0,matrix[1,1]]], dtype=np.float64
         )
     method='nearest'
     # matrix4D = np.linalg.inv(matrix4D)
@@ -171,17 +176,17 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, maxInt=None):
     refVec = list(map(RefocusSinglePixel, range(len(rangeRef)**2)))
     refVec=np.array(refVec).reshape((NR,NR))
 
-    _plt(refVec, z, mr, path)
+    _plt(refVec, z, mr, path, ind)
     return refVec
 
 
 class Calculating_G2():
     def __init__(self, fileA, fileB, frames=None):
-        self.fileA = imread(fileA)
-        self.fileB = imread(fileB)
+        self.fileA = imread(fileA).astype("float64")
+        self.fileB = imread(fileB).astype("float64")
         if frames is not None:
-            self.fileA = self.fileA[:frames]
-            self.fileB = self.fileB[:frames]
+            self.fileA = self.fileA[:frames].astype("float64")
+            self.fileB = self.fileB[:frames].astype("float64")
 
     def _bin_3d_array(self, arr, bin_size):
         """
@@ -214,8 +219,8 @@ class Calculating_G2():
         NB1 = self.fileB.shape[1]//binB
         NA2 = self.fileA.shape[2]//binA
         NB2 = self.fileB.shape[2]//binB
-        spatial = self._bin_3d_array(self.fileA, binA).reshape(N, NA1*NA2).astype("float32")
-        angular = self._bin_3d_array(self.fileB, binB).reshape(N, NB1*NB2).astype("float32")
+        spatial = self._bin_3d_array(self.fileA, binA).reshape(N, NA1*NA2).astype("float64")
+        angular = self._bin_3d_array(self.fileB, binB).reshape(N, NB1*NB2).astype("float64")
 
         # self.G2 = np.matmul(spatial.T, angular) / np.tensordot(np.sum(spatial,0), np.mean(angular,0), axes=0) - 1
         self.G2 = np.matmul(spatial.T, angular)/N - np.tensordot(np.mean(spatial,0), np.mean(angular,0), axes=0)
