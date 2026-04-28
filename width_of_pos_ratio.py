@@ -9,11 +9,11 @@ import matplotlib.pyplot as plt
 
 from CPI import readConfig, setDirectories_twocams
 from utils import Calculating_G2, Timer, refocusing, robust_gaussian_fit, plt_sigma
-exec(readConfig())
 from temp import BigStepForward_SmallStepBack, mean_positions_per_second
 from config import shift
 
-parser = argparse.ArgumentParser()
+parser = exec(readConfig())
+argparse.ArgumentParser()
 parser.add_argument('--DataSet', type=str)
 parser.add_argument('--refName', nargs='?', default='refocused', type=str)
 args = parser.parse_args()
@@ -56,9 +56,11 @@ for Afile, Bfile, z, exp in zip(armAfiles, armBfiles, try_ref_to, expect_ref):
     # refs = Parallel(n_jobs=-1, backend="loky")(
     #     delayed(refocusing)(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, save_path, maxInt) for mr in M_ratio
     # )
+    timer.start("Refocusing for z = " + str(round(z[len(z)//2], 3)) + " mm")
     refs = Parallel(n_jobs=-1, backend="loky")(
         delayed(refocusing)(G2, s, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind, maxInt) for ind, s in enumerate(z)
     )
+    timer.stop("Refocusing for z = " + str(round(z[len(z)//2], 3)) + " mm")
 
     refVec = [x for x in refs]
     if not os.path.exists(join(outDir, 'refVecs')):
@@ -76,7 +78,9 @@ for Afile, Bfile, z, exp in zip(armAfiles, armBfiles, try_ref_to, expect_ref):
     )
     # gaussian_fits is a list of parallel results, each element is a tuple of (popt, pcov) for the corresponding refocused image.
     sigma_x = np.array([fit[2] if fit is not None else np.nan for fit in gaussian_fits_x])  # shape: (len(M_ratio),)
+    cov_x = np.array([fit[3] if fit is not None else np.nan for fit in gaussian_fits_x])
     sigma_y = np.array([fit[2] if fit is not None else np.nan for fit in gaussian_fits_y])  # shape: (len(M_ratio),)
+    cov_y = np.array([fit[3] if fit is not None else np.nan for fit in gaussian_fits_y])
 
     # print("sigma for z = {}: {}".format(z, sigma_x))
     plt_sigma(M_ratio, sigma_x, z, outpath, cyc+1, axis='x')
@@ -109,10 +113,12 @@ fig.savefig(join(outDir, "trend.png"), dpi='figure',transparent=False)
 plt.close("all")
 # sigmas = np.array(sigmas)  # shape: (len(REFOC), len(M_ratio))
 #%%
-np.save(join(outDir, "sigmas_x.npy"), np.array(sigmas_x))
-np.save(join(outDir, "sigmas_y.npy"), np.array(sigmas_y))
-np.save(join(outDir, "best_pos_x.npy"), np.array(best_pos_x))
-np.save(join(outDir, "best_pos_y.npy"), np.array(best_pos_y))
-np.save(join(outDir, "best_pos.npy"), np.array(best_pos))
+np.savez(join(outDir, "sigmas.npz"), sigmas_x=np.array(sigmas_x), sigmas_y=np.array(sigmas_y), best_pos_x=best_pos_x, best_pos_y=best_pos_y, best_pos=best_pos, cov_x=cov_x, cov_y=cov_y)
+# np.save(join(outDir, "sigmas_x.npy"), np.array(sigmas_x))
+# np.save(join(outDir, "sigmas_y.npy"), np.array(sigmas_y))
+# np.save(join(outDir, "best_pos_x.npy"), np.array(best_pos_x))
+# np.save(join(outDir, "best_pos_y.npy"), np.array(best_pos_y))
+# np.save(join(outDir, "best_pos.npy"), np.array(best_pos))
 
 timer.stop("Whole refocusing")
+timer.savefile(join(outDir, "timing.txt"))

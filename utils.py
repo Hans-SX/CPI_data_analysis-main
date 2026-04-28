@@ -14,6 +14,8 @@ from CPI import PrintSectionInit, PrintSectionClose, Print, DataDir, joinDir, Ou
 from scipy.interpolate import interpn as interp
 from config import transf
 
+def line(x, m, b):
+    return m*x + b
 
 def cubic(m, a, b, c, d):
     return a + b*m + c*m**2 + d*m**3
@@ -86,9 +88,9 @@ def robust_gaussian_fit(x_data, y_data, verbose=False):
     bounds = ([0, x_fit[0], 0.5], [2, x_fit[-1], x_range*0.25])
     
     try:
-        popt, _ = curve_fit(gaussian, x_fit, y_fit, p0=p0, bounds=bounds, maxfev=5000)
+        popt, pcov = curve_fit(gaussian, x_fit, y_fit, p0=p0, bounds=bounds, maxfev=5000)
         if popt[2] > 0:  # Sanity check
-            return popt[0] * peak_height, popt[1], popt[2]
+            return popt[0] * peak_height, popt[1], popt[2], np.diag(pcov)[3]
     except:
         pass
     
@@ -96,10 +98,10 @@ def robust_gaussian_fit(x_data, y_data, verbose=False):
     bounds_tight = ([0, x_fit[int(len(x_fit)*0.3)], 1], 
                     [2, x_fit[int(len(x_fit)*0.7)], 20])
     try:
-        popt, _ = curve_fit(gaussian, x_fit, y_fit, p0=p0, 
+        popt, pcov = curve_fit(gaussian, x_fit, y_fit, p0=p0, 
                            bounds=bounds_tight, maxfev=5000)
         if popt[2] > 0:
-            return popt[0] * peak_height, popt[1], popt[2]
+            return popt[0] * peak_height, popt[1], popt[2], np.diag(pcov)[3]
     except:
         pass
     
@@ -109,7 +111,7 @@ def robust_gaussian_fit(x_data, y_data, verbose=False):
     if len(above_half) > 2:
         fwhm = above_half[-1] - above_half[0]
         sigma_est = fwhm / (2 * np.sqrt(2 * np.log(2)))  # FWHM → σ conversion
-        return peak_height, x_data[peak_idx], sigma_est
+        return peak_height, x_data[peak_idx], sigma_est, np.nan
     
     if verbose:
         print("All fitting attempts failed")
@@ -145,14 +147,18 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind, maxInt=No
     # cpi.Print("Refocusing","{} of {}".format(counter+1,len(REFOC)))
     matrix  = transf(z, mr)
     invMat  = np.linalg.inv(matrix)
+    # Ref: alpha xa + beta xb = xr
     dRef    = np.sqrt((invMat[0,0]*dpA)**2 + (invMat[0,1]*dpB)**2)
     maxRef  = (np.abs(invMat[0,0])*dpA*NA + np.abs(invMat[0,1])*dpB*NB)/2
+    # rangeRef, new grid in refocused space
     rangeRef= np.arange(-maxRef, maxRef, dRef)
     NR      = len(rangeRef)
+    #! what is sum?
     dSum    = np.sqrt((matrix[0,1]/dpA)**2 + (matrix[1,1]/dpB)**2)**-1
     maxSum  = maxInt if maxInt else (np.abs(invMat[1,0])*dpA*NA + np.abs(invMat[1,1])*dpB*NB)/2
     rangeSum= np.arange(-maxSum, maxSum, dSum)
     # NS      = len(rangeSum)
+    #* fixed 3 axes, check the intensity drop for 4 axes? -> slices of G2?
     points  = (rangeA, rangeA, rangeB, rangeB)
     refPts  = np.array([x for x in itertools.product(rangeRef, rangeRef)])
     sumPts  = np.array([x for x in itertools.product(rangeSum, rangeSum)])
@@ -173,6 +179,7 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind, maxInt=No
                              bounds_error=False,fill_value=0))
         return outcome
     # pool   = mp.Pool(8)
+    # restrict the range of rangeRef, there should be a transformation from points to rangeRef
     refVec = list(map(RefocusSinglePixel, range(len(rangeRef)**2)))
     refVec=np.array(refVec).reshape((NR,NR))
 

@@ -110,7 +110,7 @@ def mean_positions_per_second(shift, positions, focal_mpl=8.8, speed=0.5, dt=1.0
             res.append(x_mean)
 
         expect_ref = np.array(res, dtype=float) - focal_mpl
-        try_ref_to = [target_axials(x, 10, 0.01) for x in expect_ref]
+        try_ref_to = [target_axials(x, 10, 0.05) for x in expect_ref]
         # In interpolation, there is no pixel shifting.
         # try_shifts = [[shift(try_ref_to[x][y]) for y, _ in enumerate(try_ref_to[x])] for x, _ in enumerate(try_ref_to)]
 

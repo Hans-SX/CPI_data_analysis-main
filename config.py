@@ -13,7 +13,7 @@ OUTPUT_DIR = ""
 G2_DIR     = ""
 
 # Binning
-binA, binB = 4, 4
+binA, binB = 2, 2
 dpA, dpB   = 6.5* 1e-3 *4, 6.5* 1e-3*4
 # REFOCUSING
 # M_ratio = range(1, 21, 1)
@@ -42,6 +42,9 @@ def shift(position):
     # for swiping ratios: shift = - position * M_ratio/ (position + focal) * pixB/pixA
     # for the simulation data: position * MA/MB / (position + focal) * pixB/pixA
     return shift
+
+def z_of_slope(slope):
+    return - slope * focal * dpA * binA / (dpB * binB * M_ratio)
 
 # Do you want to apply the correction term?
 CORREC_BOOL = False
