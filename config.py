@@ -13,11 +13,12 @@ OUTPUT_DIR = ""
 G2_DIR     = ""
 
 # Binning
-binA, binB = 2, 2
-dpA, dpB   = 6.5* 1e-3 *4, 6.5* 1e-3*4
+binA, binB = 4, 4
+dpA, dpB   = 6.5* 1e-3 *4, 6.5* 1e-3 *4
 # REFOCUSING
 # M_ratio = range(1, 21, 1)
 M_ratio = 12.682
+M_err = 0.002
 
 maxInt = False
 

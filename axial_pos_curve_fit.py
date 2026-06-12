@@ -30,6 +30,7 @@ try_ref_to = pattern[0]
 expect_ref = pattern[1]
 
 avg_z = []
+cov = []
 cyc = 0
 for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
 # for Afile, Bfile in zip(armAfiles, armBfiles):
@@ -39,8 +40,8 @@ for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
     xaxb = np.sum(G2, axis=(1,3))
     yayb = np.sum(G2, axis=(0,2))
 
-    x_val, x_domain = np.where(xaxb > 0.5 * np.max(xaxb))
-    y_val, y_domain = np.where(yayb > 0.5 * np.max(yayb))
+    x_val, x_domain = np.where(xaxb > 0.3 * np.max(xaxb))
+    y_val, y_domain = np.where(yayb > 0.3 * np.max(yayb))
 
     x_popt, x_pcov = curve_fit(line, x_domain, x_val)
     y_popt, y_pcov = curve_fit(line, y_domain, y_val)
@@ -48,11 +49,14 @@ for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
     x_line = line(range(xaxb.shape[1]), *x_popt)
     y_line = line(range(yayb.shape[1]), *y_popt)
 
-    #? The minus sign is not well understood, but it is necessary to make the fitted z value positive, which is consistent with the fact that the platform moves towards the cameras when z increases.
-    z_from_x = - z_of_slope(x_popt[0])
+    z_from_x = z_of_slope(- x_popt[0])
     z_from_y = z_of_slope(y_popt[0])
+    cov_x = z_of_slope(- x_pcov[0, 0])
+    cov_y = z_of_slope(y_pcov[0, 0])
+
     avg_z.append((z_from_x + z_from_y) / 2)
-    
+    cov.append((np.sqrt(cov_x) + np.sqrt(cov_y)) / 2)
+
     fig, (ax1,ax2) = plt.subplots(2,figsize=(6,10))
     im1 = ax1.imshow(xaxb, cmap="gray")
     ax1.plot(x_line, color="red")
@@ -68,8 +72,11 @@ for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
 
 fig = plt.figure()
 plt.plot(range(1, 1+len(expect_ref)), expect_ref, color='black', label='Expected Z')
-plt.scatter(range(1, 1+len(expect_ref)), avg_z, label='Average Z from Slope')
+# plt.scatter(range(1, 1+len(expect_ref)), avg_z, label='Average Z from Slope')
+plt.errorbar(range(1, 1+len(expect_ref)), avg_z, yerr=cov, fmt='o', markersize=2, label='Average Z with Error Bar')
 plt.title('Axial Position Analysis')
 plt.legend()
 fig.savefig(join(outDir, "z_from_slope.png"), dpi='figure', transparent=False)
 plt.close("all")
+
+np.savez(join(outDir, "z_from_slope.npz"), avg_z=avg_z, cov=cov)

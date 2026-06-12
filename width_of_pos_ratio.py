@@ -12,8 +12,14 @@ from utils import Calculating_G2, Timer, refocusing, robust_gaussian_fit, plt_si
 from temp import BigStepForward_SmallStepBack, mean_positions_per_second
 from config import shift
 
-parser = exec(readConfig())
-argparse.ArgumentParser()
+"""
+This script is used to find the best refocused image via an anverage of 1D Gaussian fitting of the refocused images obtained by sweeping a range of axial positions (or magnification ratios) for each interval.
+Previously, we used it to sweep manification ratios to estimate the ratio.
+The sigmas will be saved and loaded by estimate_mag_ratio.py to plot the sigmas as a function of the magnification ratios for different axial positions.
+"""
+
+exec(readConfig())
+parser = argparse.ArgumentParser()
 parser.add_argument('--DataSet', type=str)
 parser.add_argument('--refName', nargs='?', default='refocused', type=str)
 args = parser.parse_args()
@@ -67,8 +73,8 @@ for Afile, Bfile, z, exp in zip(armAfiles, armBfiles, try_ref_to, expect_ref):
         os.makedirs(join(outDir, 'refVecs'))
     np.save(join(outDir, 'refVecs', str(cyc + 1) + "_" + str(round(exp, 3)) + "mm" + "_refVec.npy"), np.array(refVec, dtype=object), allow_pickle=True)
 
-    sum_refVec = [np.sum(ref, axis=1) for ref in refVec]
-    argmax_sum = [np.argmax(s) for s in sum_refVec]
+    # sum_refVec = [np.sum(ref, axis=1) for ref in refVec]
+    # argmax_sum = [np.argmax(s) for s in sum_refVec]
 
     gaussian_fits_x = Parallel(n_jobs=-1, backend="loky")(
         delayed(robust_gaussian_fit)(np.arange(ref.shape[0]), np.sum(ref, axis=1)) for ref in refVec
