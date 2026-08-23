@@ -9,7 +9,6 @@ from joblib import Parallel, delayed
 from re import search
 import matplotlib.pyplot as plt
 
-from CPI import readConfig
 from utils import Timer, fit_gaussian_2D
 
 def find_sigmas(imgpath):
@@ -22,8 +21,26 @@ def find_sigmas(imgpath):
     center_guess = gaussuan_2D_fit[6]
     return sigmas, cov, center, center_guess
 
+r = 2.5 * 1e-3      # radius of the pinhole, assume Gaussian pinhole, the transmittance.
+f = 26.67           # focal length of the objective lens
+k = 2 * np.pi / 0.532  # wave number of the laser, wavelength = 532 nm
+
+def sigma_ideal(z):
+    # l -> infinity; sigma_c -> 0
+    return np.sqrt(z**2 / (2 * k**2 * r**2) + r**2 / 2)
+
+def sigma_coh(z, sigma_c):
+    # l -> infinity;
+    return np.sqrt(z**2 / (2 * k**2 * r**2) + r**2 / 2 * ((1 + sigma_c**2 / (2 * r**2)) / (1 + sigma_c**2 / (4 * r**2))))
+
+def sigma_lens(z, l):
+    # sigma_c -> 0
+    l_term = (f**2 + z**2) / (4 * k**2 * l**2)
+    r_term = r**2 / 2
+    z_term = ((1 + f/z)**2 / (2 * l**2) + (2 * k**2 * r**2) / z**2)**(-1)
+    return np.sqrt(l_term + r_term + z_term)
+
 #%%
-# exec(readConfig())
 parser = argparse.ArgumentParser()
 parser.add_argument('--DataSet', type=str)
 parser.add_argument('--refName', nargs='?', default='refocused', type=str)
@@ -54,39 +71,6 @@ timer.start("Sigma analysis of refocused images")
 res = Parallel(n_jobs=-1, backend="loky")(delayed(find_sigmas)
                             (imgpath) for imgpath in reflist)
 
-# cyc = 0
-# sigmas_2D = []
-# cov = []
-# coord = []
-# total_iterations = len(reflist)
-
-# for ref in reflist:
-#     refVec = np.load(join(refpath, 'refVecs', ref), allow_pickle=True)
-#     gaussuan_2D_fit = Parallel(n_jobs=-1, backend="loky")(
-#         delayed(fit_gaussian_2D)(np.array(refv, dtype=float)) for refv in refVec
-#     )
-#     # gaussian_fits_x = Parallel(n_jobs=-1, backend="loky")(
-#     #     delayed(robust_gaussian_fit)(np.arange(ref.shape[0]), np.sum(ref, axis=1)) for ref in refVec
-#     # )
-#     # gaussian_fits_y = Parallel(n_jobs=-1, backend="loky")(
-#     #     delayed(robust_gaussian_fit)(np.arange(ref.shape[0]), np.sum(ref, axis=0)) for ref in refVec
-#     # )
-#     # gaussian_fits is a list of parallel results, each element is a tuple of (popt, pcov) for the corresponding refocused image.
-#     sigmas_2D.append(np.array([fit[3] if fit is not None else (np.nan, np.nan) for fit in gaussuan_2D_fit]))
-#     cov.append(np.array([fit[5] if fit is not None else (np.nan, np.nan) for fit in gaussuan_2D_fit]))
-#     coord.append(np.array([fit[1:3] if fit is not None else (np.nan, np.nan) for fit in gaussuan_2D_fit]))
-#     # sigma_x = np.array([fit[2] if fit is not None else np.nan for fit in gaussian_fits_x])
-#     # err_x = np.array([np.sqrt(fit[3]) if fit is not None else np.nan for fit in gaussian_fits_x])
-#     # sigma_y = np.array([fit[2] if fit is not None else np.nan for fit in gaussian_fits_y])
-#     # err_y = np.array([np.sqrt(fit[3]) if fit is not None else np.nan for fit in gaussian_fits_y])
-
-#     # avg_sigmas.append((sigma_x/err_x**2 + sigma_y/err_y**2) / (1/err_x**2 + 1/err_y**2))
-
-#     if (cyc+1) % 10 == 0:
-#         print("Iteration " + str(cyc+1) + " of " + str(total_iterations) + " finished.")
-
-#     cyc += 1
-
 timer.stop("Sigma analysis of refocused images")
 sigmas_2D = np.array([res[i][0] for i in range(len(res))])
 cov = np.array([res[i][1] for i in range(len(res))])
@@ -109,6 +93,10 @@ with open(join(os.getcwd(), os.pardir, args.DataSet, 'positions.csv'), 'r', newl
 pos_platf = np.array(pos_platf, dtype=float) - 8.8 # 8.8 is the position of the focal plane on the platform measure.
 time_platf = np.array(time_platf, dtype=float)
 
+threshold = np.where(abs(sigmas_2D) < 6)
+sigmas = sigmas_2D[threshold]    # Set the threshold to 6 for a more clear visualization of the sigma of z. The threshold can be adjusted based on the specific data and analysis requirements.
+avg_z_th = avg_z[threshold]
+coord_th = coord[threshold]
 fig = plt.figure()
 # plt.errorbar(
 #     avg_z, abs(sigmas_2D), yerr=err,
@@ -119,7 +107,7 @@ fig = plt.figure()
 #     markersize=2,
 #     label='Data ± error'
 # )
-plt.scatter(avg_z, abs(sigmas_2D), label='Sigma of weighted avg z.')
+plt.scatter(avg_z_th, abs(sigmas), label='Sigma of weighted avg z.')
 plt.xlabel('Position (mm)')
 plt.ylabel('Sigma of Gaussian fit (pixels)')
 plt.title('Sigma of z.')
@@ -130,7 +118,7 @@ plt.close("all")
 fig, ax1 = plt.subplots(figsize=(8,5))
 ax1.set_xlabel('Time order')
 ax1.set_ylabel('Center coordinates of Gaussian fit (pixel)')
-ax1.scatter(range(coord[:,0].shape[0]), coord[:,0], label='Center x')
+ax1.scatter(range(coord_th[:,0].shape[0]), coord_th[:,0], label='Center x')
 
 ax1.grid(True, alpha=0.3)
 
@@ -149,7 +137,7 @@ plt.close("all")
 fig, ax1 = plt.subplots(figsize=(8,5))
 ax1.set_xlabel('Time order')
 ax1.set_ylabel('Center coordinates of Gaussian fit (pixel)')
-ax1.scatter(range(coord[:,1].shape[0]), coord[:,1], label='Center y', color='orange')
+ax1.scatter(range(coord_th[:,1].shape[0]), coord_th[:,1], label='Center y', color='orange')
 
 ax1.grid(True, alpha=0.3)
 
