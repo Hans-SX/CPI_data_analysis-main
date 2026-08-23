@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 
-from utils import Calculating_G2, line, ridge_fit, plot_ridge_fit
+from utils import Calculating_G2, ridge_fit, ridge_odr_fit, plot_ridge_fit
 from CPI import readConfig, setDirectories_twocams
 from temp import BigStepForward_SmallStepBack, mean_positions_per_second
 from config import shift, binA, binB, M_err, z_of_slope
@@ -51,8 +51,10 @@ for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
     xaxb[np.where(xaxb < 0)] = 0
     yayb[np.where(yayb < 0)] = 0
 
-    res_x = ridge_fit(xaxb, intensity_power=5)
-    res_y = ridge_fit(yayb, intensity_power=5)
+    # res_x = ridge_fit(xaxb, intensity_power=5)
+    # res_y = ridge_fit(yayb, intensity_power=5)
+    res_x = ridge_odr_fit(xaxb, intensity_power=5)
+    res_y = ridge_odr_fit(yayb, intensity_power=5)
 
     slope_x = - res_x['slope']
     slope_y = res_y['slope']
