@@ -1,11 +1,14 @@
 #%%
 import numpy as np
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend before importing pyplot
+import matplotlib.pyplot as plt
+
 import argparse
 import os
 from os.path import join
 from joblib import Parallel, delayed
-import matplotlib.pyplot as plt
 
 from CPI import readConfig, setDirectories_twocams
 from utils import Calculating_G2, Timer, refocusing, robust_gaussian_fit, plt_sigma
@@ -35,6 +38,8 @@ timer.start("Whole refocusing")
 cyc = 0
 sigmas_x = []
 sigmas_y = []
+covs_x = []
+covs_y = []
 
 # REFOC = (np.array(REFOC) * 0.1 - 8.5) * 1000  # convert to micro meters and shift the origin to the position of the platform when z=0, which is 8.5 mm in the original scale.
 pattern = mean_positions_per_second(shift, BigStepForward_SmallStepBack(6.8, 12.8, pattern=np.array((6, -3))).pos_frames(interval=0.1, time_interval=50)['pos'], speed=0.1)
@@ -97,6 +102,8 @@ for Afile, Bfile, z, exp in zip(armAfiles, armBfiles, try_ref_to, expect_ref):
         print("Iteration " + str(cyc+1) + " of " + str(total_iterations) + " finished.")
     sigmas_x.append(sigma_x)
     sigmas_y.append(sigma_y)
+    covs_x.append(cov_x)
+    covs_y.append(cov_y)
 
     cyc += 1
 
@@ -105,6 +112,8 @@ argmin_sig_y = np.argmin(np.array(sigmas_y), axis=1)
 best_pos_x = np.array(try_ref_to)[np.arange(np.array(try_ref_to).shape[0]), argmin_sig_x]
 best_pos_y = np.array(try_ref_to)[np.arange(np.array(try_ref_to).shape[0]), argmin_sig_y]
 best_pos = (best_pos_x + best_pos_y) / 2
+corr_xerr = np.array(covs_x)[np.arange(np.array(try_ref_to).shape[0]), argmin_sig_x]
+corr_yerr = np.array(covs_y)[np.arange(np.array(try_ref_to).shape[0]), argmin_sig_y]
 fig = plt.figure()
 plt.plot(best_pos_x, label='Best Position from X')
 plt.plot(best_pos_y, label='Best Position from Y')
@@ -119,12 +128,7 @@ fig.savefig(join(outDir, "trend.png"), dpi='figure',transparent=False)
 plt.close("all")
 # sigmas = np.array(sigmas)  # shape: (len(REFOC), len(M_ratio))
 #%%
-np.savez(join(outDir, "sigmas.npz"), sigmas_x=np.array(sigmas_x), sigmas_y=np.array(sigmas_y), best_pos_x=best_pos_x, best_pos_y=best_pos_y, best_pos=best_pos, cov_x=cov_x, cov_y=cov_y)
-# np.save(join(outDir, "sigmas_x.npy"), np.array(sigmas_x))
-# np.save(join(outDir, "sigmas_y.npy"), np.array(sigmas_y))
-# np.save(join(outDir, "best_pos_x.npy"), np.array(best_pos_x))
-# np.save(join(outDir, "best_pos_y.npy"), np.array(best_pos_y))
-# np.save(join(outDir, "best_pos.npy"), np.array(best_pos))
+np.savez(join(outDir, "sigmas.npz"), sigmas_x=np.array(sigmas_x), sigmas_y=np.array(sigmas_y), best_pos_x=best_pos_x, best_pos_y=best_pos_y, best_pos=best_pos, cov_x=corr_xerr, cov_y=corr_yerr)
 
 timer.stop("Whole refocusing")
 timer.savefile(join(outDir, "timing.txt"))
