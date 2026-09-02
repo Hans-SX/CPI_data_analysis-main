@@ -51,10 +51,10 @@ for Afile, Bfile, exp in zip(armAfiles, armBfiles, expect_ref):
     xaxb[np.where(xaxb < 0)] = 0
     yayb[np.where(yayb < 0)] = 0
 
-    # res_x = ridge_fit(xaxb, intensity_power=5)
-    # res_y = ridge_fit(yayb, intensity_power=5)
-    res_x = ridge_odr_fit(xaxb, intensity_power=5)
-    res_y = ridge_odr_fit(yayb, intensity_power=5)
+    res_x = ridge_fit(xaxb, intensity_power=5)
+    res_y = ridge_fit(yayb, intensity_power=5)
+    # res_x = ridge_odr_fit(xaxb, intensity_power=5)
+    # res_y = ridge_odr_fit(yayb, intensity_power=5)
 
     slope_x = - res_x['slope']
     slope_y = res_y['slope']

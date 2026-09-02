@@ -332,7 +332,6 @@ def ridge_odr_fit(
     intensity_threshold=0.20,
     fit_radius=30,
     intensity_power=5,
-    bootstrapping=False
 ):
     """
     For fit_every_ang_max.py.
@@ -513,12 +512,12 @@ def ridge_odr_fit(
     # ============================================================
     # Weighted linear fit
     # ============================================================
-    def line_for_odr(x: np.narray, beta: np.ndarray) -> np.ndarray:
+    def line_for_odr(x: np.ndarray, beta: np.ndarray) -> np.ndarray:
         b1, b2 = beta
         return b1*x + b2
     weights = Ifit**intensity_power
 
-    sol = np.odr_fit(
+    sol = odr_fit(
         line_for_odr,
         xfit,
         yfit,
@@ -528,37 +527,7 @@ def ridge_odr_fit(
     slope = sol.beta[0]
     intercept = sol.beta[1]
     slope_err = sol.sd_beta[0]
-    """
-    # ============================================================
-    # Residuals
-    # ============================================================
-    
-    y_model = slope * xfit + intercept
-    
-    residuals = yfit - y_model
-    
-    N = len(xfit)
-    
-    # ============================================================
-    # Weighted residual variance
-    # ============================================================
-    
-    s2 = np.sum(weights * residuals**2) / (N - 2)
-    
-    # ============================================================
-    # Weighted x mean
-    # ============================================================
-    
-    xw_mean = np.sum(weights * xfit) / np.sum(weights)
-    
-    # ============================================================
-    # Slope uncertainty
-    # ============================================================
-    
-    Sxx = np.sum(weights * (xfit - xw_mean)**2)
-    
-    slope_err = np.sqrt(s2 / Sxx)
-    """
+
     # ============================================================
     # Angle + uncertainty
     # ============================================================
