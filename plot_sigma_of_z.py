@@ -11,6 +11,12 @@ import matplotlib.pyplot as plt
 
 from utils import Timer, fit_gaussian_2D
 
+"""
+Fitting the refocused image to a 2D Gaussian, find the width of it and the center shifting in x and y when moving along z.
+Inputs are the positions z and the corresponding refocused image file.
+"""
+
+
 def find_sigmas(imgpath):
     refVec = np.load(imgpath, allow_pickle=True)
     refVec = np.array(refVec, dtype=float)
