@@ -14,6 +14,30 @@ from odrpack import odr_fit
 
 from config import transf
 
+def kernel_smooth(t, y, bw=4.0, n_grid=400, robust=True, n_iter=3):
+    """
+    Gaussian-kernel running mean with a local ±1σ band.
+    bw     : kernel width in the same units as t (seconds here).
+    robust : iteratively down-weight outliers (Tukey biweight, like LOWESS).
+    Returns grid, mean, std, and per-point robustness weights (0 = rejected).
+    """
+    t = np.asarray(t, float); y = np.asarray(y, float)
+    w_rob = np.ones_like(y)
+    for _ in range(n_iter if robust else 1):
+        K = np.exp(-0.5*((t[:, None] - t[None, :])/bw)**2) * w_rob[None, :]
+        fit = (K @ y) / K.sum(1)
+        r = y - fit
+        s = 1.4826*np.median(np.abs(r))          # robust sigma (MAD)
+        u = r/(6*s)
+        w_rob = np.where(np.abs(u) < 1, (1 - u**2)**2, 0.0)
+
+    tg = np.linspace(t.min(), t.max(), n_grid)
+    K = np.exp(-0.5*((tg[:, None] - t[None, :])/bw)**2) * w_rob[None, :]
+    W = K.sum(1)
+    mean = (K @ y) / W
+    std = np.sqrt(np.clip((K @ y**2)/W - mean**2, 0, None))
+    return tg, mean, std, w_rob
+
 def ridge_fit(
     g2x,
     sigma_smooth=0,
@@ -22,7 +46,6 @@ def ridge_fit(
     intensity_threshold=0.20,
     fit_radius=30,
     intensity_power=5,
-    bootstrapping=False
 ):
     """
     For fit_every_ang_max.py.
@@ -267,48 +290,6 @@ def ridge_fit(
     # ============================================================
     # Return
     # ============================================================
-    if bootstrapping != False:
-        slope_bt = []
-        intercept_bt = []
-        while bootstrapping > 0:
-            rng = np.random.default_rng()
-            ridx = rng.choice(len(xfit), size=len(xfit), replace=True)
-            ridx = np.unique(ridx)
-
-            xfit_bt = xfit[ridx]
-            yfit_bt = yfit[ridx]
-            Ifit_bt = Ifit[ridx]
-            rng = np.random.default_rng()
-            ridx = rng.choice(len(xfit), size=len(xfit), replace=True)
-            ridx = np.unique(ridx)
-
-            xfit_bt = xfit[ridx]
-            yfit_bt = yfit[ridx]
-            Ifit_bt = Ifit[ridx]
-
-            weights_bt = Ifit_bt**intensity_power
-
-            coeffs = np.polyfit(
-            xfit_bt,
-            yfit_bt,
-            deg=1,
-            w=np.sqrt(weights_bt)
-            )
-            slope_bt.append(coeffs[0])
-            intercept_bt.append(coeffs[1])
-            bootstrapping -= 1
-
-        slope_bt_mean = np.mean(np.array(slope_bt))
-        slope_bt_err = np.std(np.array(slope_bt))
-        return {
-            "slope": slope,
-            "slope_err": slope_err,
-            "slope_bt_mean": slope_bt_mean,
-            "slope_bt_std": slope_bt_err,
-            "intercept_bt_mean": np.mean(np.array(intercept_bt)),
-            "x_fit": xfit_bt,
-            "y_fit": yfit_bt
-        }
 
     return {
         "x_all": ridge_x,
@@ -322,243 +303,6 @@ def ridge_fit(
         "angle_deg": angle_deg,
         "slope_err": slope_err,
         "cov": cov
-    }
-
-def ridge_odr_fit(
-    g2x,
-    sigma_smooth=0,
-    half_window=10,
-    max_jump=4,
-    intensity_threshold=0.20,
-    fit_radius=30,
-    intensity_power=5,
-):
-    """
-    For fit_every_ang_max.py.
-    Ridge tracking + weighted linear odr fit.
-
-    Parameters
-    ----------
-    g2x : 2D numpy array
-        Input image.
-
-    sigma_smooth : float
-        Gaussian smoothing sigma.
-
-    half_window : int
-        Vertical search window around previous point.
-
-    max_jump : float
-        Maximum allowed vertical jump between columns.
-
-    intensity_threshold : float
-        Keep only points with intensity above
-        threshold * max_intensity.
-
-    fit_radius : int
-        Only fit points within this horizontal
-        distance from the brightest point.
-
-    intensity_power : float
-        Weight exponent:
-            w = intensity ** intensity_power
-
-    plot_result : bool
-        Display result.
-
-    bootstrapping : bool
-        Whether to perform bootstrapping.
-
-    Returns
-    -------
-    result : dict
-    """
-
-    # ============================================================
-    # Smooth image
-    # ============================================================
-
-    Is = gaussian_filter(g2x, sigma=sigma_smooth)
-
-    Ny, Nx = Is.shape
-
-    # ============================================================
-    # Brightest point
-    # ============================================================
-
-    y0, x0 = np.unravel_index(np.argmax(Is), Is.shape)
-
-    # ============================================================
-    # Subpixel quadratic refinement
-    # ============================================================
-
-    def refine_peak(profile, idx):
-
-        if idx <= 0 or idx >= len(profile)-1:
-            return float(idx)
-
-        y1 = profile[idx-1]
-        y2 = profile[idx]
-        y3 = profile[idx+1]
-
-        denom = y1 - 2*y2 + y3
-
-        if abs(denom) < 1e-12:
-            return float(idx)
-
-        delta = 0.5 * (y1 - y3) / denom
-
-        return idx + delta
-
-    # ============================================================
-    # Ridge tracking
-    # ============================================================
-
-    def follow(step):
-
-        xs = []
-        ys = []
-        intensities = []
-
-        x = x0
-        y_prev = float(y0)
-
-        while True:
-
-            x += step
-
-            if x < 0 or x >= Nx:
-                break
-
-            ymin = max(0, int(round(y_prev - half_window)))
-            ymax = min(Ny, int(round(y_prev + half_window + 1)))
-
-            profile = Is[ymin:ymax, x]
-
-            if len(profile) < 3:
-                break
-
-            # ----------------------------------------------------
-            # Local maximum
-            # ----------------------------------------------------
-
-            idx_local = np.argmax(profile)
-
-            # ----------------------------------------------------
-            # Subpixel refinement
-            # ----------------------------------------------------
-
-            idx_refined = refine_peak(profile, idx_local)
-
-            yc = ymin + idx_refined
-
-            # ----------------------------------------------------
-            # Continuity constraint
-            # ----------------------------------------------------
-
-            if abs(yc - y_prev) > max_jump:
-                yc = y_prev
-
-            # ----------------------------------------------------
-            # Intensity at ridge point
-            # ----------------------------------------------------
-
-            intensity = np.interp(
-                yc,
-                np.arange(Ny),
-                Is[:, x]
-            )
-
-            xs.append(x)
-            ys.append(yc)
-            intensities.append(intensity)
-
-            y_prev = yc
-
-        return xs, ys, intensities
-
-    # ============================================================
-    # Track both directions
-    # ============================================================
-
-    xs_r, ys_r, Is_r = follow(+1)
-    xs_l, ys_l, Is_l = follow(-1)
-
-    # xs_l, ys_l, Is_l are lists, + will concatenate them. We want to reverse the left side to have increasing x order.
-    ridge_x = np.array(xs_l[::-1] + [x0] + xs_r)
-    ridge_y = np.array(ys_l[::-1] + [y0] + ys_r)
-
-    ridge_I = np.array(Is_l[::-1] + [Is[y0, x0]] + Is_r)
-
-    # ============================================================
-    # Point selection
-    # ============================================================
-
-    mask_intensity = (
-        ridge_I >
-        intensity_threshold * ridge_I.max()
-    )
-
-    mask_radius = (
-        np.abs(ridge_x - x0) < fit_radius
-    )
-
-    mask = mask_intensity & mask_radius
-
-    xfit = ridge_x[mask]
-    yfit = ridge_y[mask]
-    Ifit = ridge_I[mask]
-
-    # ============================================================
-    # Weighted linear fit
-    # ============================================================
-    def line_for_odr(x: np.ndarray, beta: np.ndarray) -> np.ndarray:
-        b1, b2 = beta
-        return b1*x + b2
-    weights = Ifit**intensity_power
-
-    sol = odr_fit(
-        line_for_odr,
-        xfit,
-        yfit,
-        beta0 = [1.0, 1.0]
-        )
-    
-    slope = sol.beta[0]
-    intercept = sol.beta[1]
-    slope_err = sol.sd_beta[0]
-
-    # ============================================================
-    # Angle + uncertainty
-    # ============================================================
-    
-    angle_rad = np.arctan(slope)
-    
-    angle_deg = np.degrees(angle_rad)
-    
-    angle_err_rad = slope_err / (1 + slope**2)
-    
-    angle_err_deg = np.degrees(angle_err_rad)
-    
-    # print(
-    #     f"Angle = {angle_deg:.2f} ± "
-    #     f"{angle_err_deg:.2f} deg"
-    # )
-
-    # ============================================================
-    # Return
-    # ============================================================
-    return {
-        "x_all": ridge_x,
-        "y_all": ridge_y,
-        "I_all": ridge_I,
-        "x_fit": xfit,
-        "y_fit": yfit,
-        "weights": weights,
-        "slope": slope,
-        "intercept": intercept,
-        "angle_deg": angle_deg,
-        "slope_err": slope_err,
     }
 
 def plot_ridge_fit(result, g2, sigma_smooth=0, ax=None):
@@ -737,8 +481,10 @@ def fit_gaussian_2D(data, ls=False):
     else:
         popt, pcov = curve_fit(Gaussian2D, coordinate(data.shape), data.ravel(), p0=p0, maxfev=5000)
 
+        perr = np.sqrt(np.diag(pcov))
+
     Amp, x0, y0, sigma_x, offset = popt
-    return Amp, x0, y0, sigma_x, offset, np.diag(pcov)[3], p0[1:3]
+    return Amp, x0, y0, sigma_x, offset, np.diag(pcov)[1:4], p0[1:3], pcov
 
 # %%
 def robust_gaussian_fit(x_data, y_data):
