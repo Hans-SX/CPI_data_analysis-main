@@ -578,7 +578,7 @@ def plt_sigma(M_ratio, sigma, z, path, cyc, axis='x'):
     fig.savefig(join(save_path, f"{cyc}_sigma_z_{round(M_ratio, 3)}.png"), dpi='figure',transparent=False)
     plt.close("all")
 
-def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind=0, maxInt=None):
+def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind=0, maxInt=None, overflow=None):
     # cpi.Print("Refocusing","{} of {}".format(counter+1,len(M_ratio)))
     # cpi.Print("Refocusing","{} of {}".format(counter+1,len(REFOC)))
     matrix  = transf(z, mr)
@@ -617,9 +617,16 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind=0, maxInt=
     # restrict the range of rangeRef, there should be a transformation from points to rangeRef
     refVec = list(map(RefocusSinglePixel, range(len(rangeRef)**2)))
     refVec=np.array(refVec).reshape((NR,NR))
-
-    _plt(refVec, z, mr, path, ind)
-    return refVec
+    if overflow is True:
+        mask = np.ones(refVec.shape)
+        mask[np.where(refVec < -1e8)] = 0
+        masked = refVec * mask
+        masked[np.where(mask == 0)] = refVec.max()
+        _plt(masked, z, mr, path, ind)
+        return masked
+    else:
+        _plt(refVec, z, mr, path, ind)
+        return refVec
 
 
 class Calculating_G2():
