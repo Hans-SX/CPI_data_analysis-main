@@ -456,8 +456,10 @@ def fit_gaussian_2D(data, ls=False):
         y = y - data.shape[0] // 2
         x = x - data.shape[1] // 2
         Amp_guess = data.max() - data.min()
-        x0_guess = x[np.where(data==data.max())][0]
-        y0_guess = y[np.where(data==data.max())][0]
+        # x0_guess = x[np.where(data==data.max())][0]
+        # y0_guess = y[np.where(data==data.max())][0]
+        #? 20261023, above may go wrong if there are two maximums. following not tested yet.
+        y0_guess, x0_guess = np.unravel_index(np.argmax(data), data.shape)
         sigma_x_guess = 5  # Approximate width
         offset_guess = data.min()
         p0 = [Amp_guess, x0_guess, y0_guess, sigma_x_guess, offset_guess]
