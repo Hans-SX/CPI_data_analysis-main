@@ -52,7 +52,7 @@ for Afile, Bfile, z in zip(armAfiles, armBfiles, avg_z):
 
     timer.start("Refocusing for z = " + str(round(z, 3)) + " mm")
     
-    refVec = refocusing(G2, z, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind=cyc)
+    refVec = refocusing(G2, z, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind=cyc, overflow=True)
     # refs = Parallel(n_jobs=-1, backend="loky")(
         # delayed(refocusing)(G2, s, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind, maxInt) for ind, s in enumerate(z)
     # )    
