@@ -30,7 +30,7 @@ def save_refocused_image(Afile, Bfile, z, cyc, timer, save_path):
 
     timer.start("Refocusing for z = " + str(round(z, 3)) + " mm")
     
-    refVec = refocusing(G2, z, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind=cyc)
+    refVec = refocusing(G2, z, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind=cyc, overflow=False)
     # refs = Parallel(n_jobs=-1, backend="loky")(
         # delayed(refocusing)(G2, s, M_ratio, rangeA, rangeB, dpA, dpB, NA, NB, save_path, ind, maxInt) for ind, s in enumerate(z)
     # )    
@@ -54,11 +54,11 @@ datapath = join(os.getcwd(), os.pardir, args.DataSet, 'data')
 outpath = join(os.getcwd(), os.pardir, args.DataSet, args.refName)
 outDir, armAfiles, armBfiles = setDirectories_twocams(stdData=STD_PATH, stdOut=STD_PATH, timeTag=TT_BOOL, dataPath=datapath, outPath=outpath, armA=armA_PATH, armB=armB_PATH)
 
-# z_from_slope = np.load(join(outpath, 'z_from_slope.npz'))
-# avg_z = z_from_slope['avg_z']
+z_from_slope = np.load(join(outpath, 'z_from_slope.npz'))
+avg_z = z_from_slope['avg_z']
 
-pattern = mean_positions_per_second(shift, BigStepForward_SmallStepBack(6.8, 12.8, pattern=np.array((6, -3))).pos_frames(interval=0.1, time_interval=50)['pos'], speed=0.1)
-avg_z = pattern[1]
+# pattern = mean_positions_per_second(shift, BigStepForward_SmallStepBack(6.8, 12.8, pattern=np.array((6, -3))).pos_frames(interval=0.1, time_interval=50)['pos'], speed=0.1)
+# avg_z = pattern[1]
 # z_from_x = z_from_slope['z_from_x']
 # z_from_y = z_from_slope['z_from_y']
 # ref_pos = zip(avg_z, z_from_x, z_from_y)
@@ -75,7 +75,7 @@ if not os.path.exists(save_path):
 # Parallel(n_jobs=-1, backend="loky")(
 #     delayed(save_refocused_image)(Afile, Bfile, z, cyc, timer, save_path) for cyc, (Afile, Bfile, z) in enumerate(zip(armAfiles, armBfiles, avg_z))
 #     )
-Parallel(n_jobs=4, backend="loky")(
+Parallel(n_jobs=2, backend="loky")(
     delayed(save_refocused_image)(Afile, Bfile, z, cyc, timer, save_path) for Afile, Bfile, z, cyc in zip(armAfiles, armBfiles, avg_z, np.arange(total_iterations))
     )
 timer.stop("Whole refocusing")

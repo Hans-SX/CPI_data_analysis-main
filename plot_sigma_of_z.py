@@ -29,9 +29,12 @@ def find_sigmas(imgpath):
     center_guess = gaussuan_2D_fit[6]
     return sigmas, cov, center, center_guess, gaussuan_2D_fit[7]
 
+"""
 r = 25 * 1e-3      # radius of the pinhole, assume Gaussian pinhole, the transmittance.
 f = 26.67           # focal length of the objective lens
-k = 2 * np.pi / 0.532  # wave number of the laser, wavelength = 532 nm
+k = 2 * np.pi / (532 * 1e-6)  # wave number of the laser, wavelength = 532 nm
+
+The following three functions are the theoretical width of the refocused image when moving along z.
 
 def sigma_ideal(z):
     # l -> infinity; sigma_c -> 0
@@ -47,7 +50,7 @@ def sigma_lens(z, l):
     r_term = r**2 / 2
     z_term = ((1 + f/z)**2 / (2 * l**2) + (2 * k**2 * r**2) / z**2)**(-1)
     return np.sqrt(l_term + r_term + z_term)
-
+"""
 #%%
 parser = argparse.ArgumentParser()
 parser.add_argument('--DataSet', type=str)
@@ -121,7 +124,7 @@ pos_platf = np.array(pos_platf, dtype=float) - 8.8 # 8.8 is the position of the 
 time_platf = np.array(time_platf, dtype=float)
 
 # threshold = np.where(abs(sigmas_2D) < 6 * effect_size)
-threshold = np.where(abs(err_sig) < 0.9)
+threshold = np.where(abs(err_sig) < 10)
 sigmas = sigmas_2D[threshold]    # Set the threshold to 6 for a more clear visualization of the sigma of z. The threshold can be adjusted based on the specific data and analysis requirements.
 avg_z_th = avg_z[threshold]
 coord_th = coord[threshold]

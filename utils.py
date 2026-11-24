@@ -617,11 +617,17 @@ def refocusing(G2, z, mr, rangeA, rangeB, dpA, dpB, NA, NB, path, ind=0, maxInt=
     # restrict the range of rangeRef, there should be a transformation from points to rangeRef
     refVec = list(map(RefocusSinglePixel, range(len(rangeRef)**2)))
     refVec=np.array(refVec).reshape((NR,NR))
-    if overflow is True:
-        mask = np.ones(refVec.shape)
-        mask[np.where(refVec < -1e8)] = 0
-        masked = refVec * mask
-        masked[np.where(mask == 0)] = refVec.max()
+    if overflow is True and abs(z) < 0.35:
+        #! Both fixed and the AI suggested way did not work. Refocused image enlarged.
+        # mask = np.ones(refVec.shape)
+        # mask[np.where(refVec < -1e8)] = 0
+        # masked = refVec * mask
+        # masked[np.where(mask == 0)] = refVec.max()
+        med = np.median(refVec)                                # background level
+        sigma = 1.4826 * np.median(np.abs(refVec - med))       # robust noise estimate
+        bad = refVec < med - 5 * sigma
+        masked = refVec.copy()
+        masked[bad] = refVec.max()
         _plt(masked, z, mr, path, ind)
         return masked
     else:

@@ -13,7 +13,7 @@ OUTPUT_DIR = ""
 G2_DIR     = ""
 
 # Binning
-binA, binB = 4, 4
+binA, binB = 1, 1
 dpA, dpB   = 6.5* 1e-3 *4, 6.5* 1e-3 *4
 # REFOCUSING
 # M_ratio = range(1, 21, 1)
