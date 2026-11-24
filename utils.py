@@ -450,6 +450,10 @@ def fit_gaussian_2D(data, ls=False):
     def Gaussian2D(coords, A, x0, y0, sigma_x, offset=0):
         x, y = coords
         return A * np.exp(-(((x - x0) ** 2  + (y - y0) ** 2)/ (2 * sigma_x ** 2))) + offset
+
+    def Gaussian2D_xy(coords, A, x0, y0, sigma_x, sigma_y, offset=0):
+        x, y = coords
+        return A * np.exp(-(((x - x0) ** 2/ (2 * sigma_x ** 2)  + (y - y0) ** 2)/ (2 * sigma_y ** 2))) + offset
     
     def init_guess(data):
         y, x = np.indices(data.shape)
@@ -458,16 +462,17 @@ def fit_gaussian_2D(data, ls=False):
         Amp_guess = data.max() - data.min()
         # x0_guess = x[np.where(data==data.max())][0]
         # y0_guess = y[np.where(data==data.max())][0]
-        #? 20261023, above may go wrong if there are two maximums. following not tested yet.
+        #? 20261023, above may go wrong if there are two maximums. following not tested yet. A few runs seems good.
         y0_guess, x0_guess = np.unravel_index(np.argmax(data), data.shape)
         sigma_x_guess = 5  # Approximate width
+        sigma_y_guess = 5
         offset_guess = data.min()
-        p0 = [Amp_guess, x0_guess, y0_guess, sigma_x_guess, offset_guess]
+        p0 = [Amp_guess, x0_guess, y0_guess, sigma_x_guess, sigma_y_guess, offset_guess]
         return p0
     
     def residuals(params, data):
-        A, x0, y0, sigma_x, offset = params
-        model = Gaussian2D(coordinate(data.shape), A, x0, y0, sigma_x, offset).reshape(data.shape)
+        A, x0, y0, sigma_x, sigma_y, offset = params
+        model = Gaussian2D_xy(coordinate(data.shape), A, x0, y0, sigma_x, sigma_y, offset).reshape(data.shape)
         return (model - data).ravel()
     
     p0 = init_guess(data)
@@ -481,12 +486,13 @@ def fit_gaussian_2D(data, ls=False):
         pcov = np.arange(25).reshape(5, 5) * residual_variance
 
     else:
-        popt, pcov = curve_fit(Gaussian2D, coordinate(data.shape), data.ravel(), p0=p0, maxfev=5000)
+        popt, pcov = curve_fit(Gaussian2D_xy, coordinate(data.shape), data.ravel(), p0=p0, maxfev=5000)
 
-        perr = np.sqrt(np.diag(pcov))
+        # perr = np.sqrt(np.diag(pcov))
 
-    Amp, x0, y0, sigma_x, offset = popt
-    return Amp, x0, y0, sigma_x, offset, np.diag(pcov)[1:4], p0[1:3], pcov
+    Amp, x0, y0, sigma_x, sigma_y, offset = popt
+    sigma = np.sqrt(sigma_x * sigma_y)
+    return Amp, x0, y0, sigma, offset, np.diag(pcov)[1:5], p0[1:4], pcov
 
 # %%
 def robust_gaussian_fit(x_data, y_data):
