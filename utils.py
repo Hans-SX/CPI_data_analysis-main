@@ -360,85 +360,6 @@ def plot_ridge_fit(result, g2, sigma_smooth=0, ax=None):
 
     return ax
 
-
-def column_centroids(image):
-    """
-    Did not work as a charm.
-    """
-    image = np.asarray(image, dtype=float)
-    if image.ndim == 3:
-        image = 0.299 * image[..., 0] + 0.587 * image[..., 1] + 0.114 * image[..., 2]
-
-    h, w = image.shape
-    y = np.arange(h)
-
-    col_sums = image.sum(axis=0)
-    weighted_sums = (image * y[:, None]).sum(axis=0)
-
-    centroids = np.full(w, np.nan)
-    valid = col_sums > 0
-    centroids[valid] = weighted_sums[valid] / col_sums[valid]
-
-    # print("Column sums (first 10):", col_sums[:10])
-    # print("Centroids (first 10):", centroids[:10])
-
-    # if ax is None:
-    #     fig, ax = plt.subplots()
-
-    # ax.imshow(image, cmap='gray', origin='upper')
-    # x = np.arange(w)
-    # ax.scatter(x[valid], centroids[valid], c=color, s=s)
-    # ax.set_xlim(-0.5, w - 0.5)
-    # ax.set_ylim(h - 0.5, -0.5)
-    # ax.set_title("Column centroids (x vs y)")
-
-    return centroids
-
-def line(x, m, b):
-    return m*x + b
-
-def cubic(m, a, b, c, d):
-    return a + b*m + c*m**2 + d*m**3
-
-def get_m_min_and_error(popt, pcov, M_ratio):
-    """
-    Extract minimum ratio m_min and its error from cubic fit.
-    
-    Args:
-        popt: [a, b, c, d] from cubic fit
-        pcov: covariance matrix from curve_fit
-        M_ratio: array of m ratios used in fit (for bounds checking)
-    
-    Returns:
-        (m_min, delta_m_min) or (nan, nan) if no valid minimum
-    """
-    _, b, c, d = popt
-    
-    # Solve sigma'(m) = b + 2c*m + 3d*m^2 = 0
-    coeffs = [3*d, 2*c, b]
-    roots = np.roots(coeffs)
-    
-    # Find physical minimum
-    m_min = None
-    for root in roots:
-        if np.isreal(root) and np.isfinite(root):
-            m_cand = root.real
-            if M_ratio[0] <= m_cand <= M_ratio[-1]:
-                # Second derivative > 0 confirms local minimum
-                second_deriv = 2*c + 6*d * m_cand
-                if second_deriv > 0:
-                    m_min = m_cand
-                    break
-    
-    if m_min is None:
-        return np.nan, np.nan
-    
-    # Simplified error estimate from parameter uncertainties
-    param_err = np.sqrt(np.diag(pcov))
-    delta_m_min = np.mean(param_err[1:]) * 0.5  # Errors on b,c,d
-    
-    return m_min, delta_m_min
-
 def fit_gaussian_2D(data, ls=False):
     def coordinate(shape):
         y, x = np.indices(shape)
@@ -447,9 +368,9 @@ def fit_gaussian_2D(data, ls=False):
         coords = np.vstack((x.ravel(), y.ravel()))
         return coords
 
-    def Gaussian2D(coords, A, x0, y0, sigma_x, offset=0):
-        x, y = coords
-        return A * np.exp(-(((x - x0) ** 2  + (y - y0) ** 2)/ (2 * sigma_x ** 2))) + offset
+    # def Gaussian2D(coords, A, x0, y0, sigma_x, offset=0):
+    #     x, y = coords
+    #     return A * np.exp(-(((x - x0) ** 2  + (y - y0) ** 2)/ (2 * sigma_x ** 2))) + offset
 
     def Gaussian2D_xy(coords, A, x0, y0, sigma_x, sigma_y, offset=0):
         x, y = coords
@@ -460,9 +381,6 @@ def fit_gaussian_2D(data, ls=False):
         y = y - data.shape[0] // 2
         x = x - data.shape[1] // 2
         Amp_guess = data.max() - data.min()
-        # x0_guess = x[np.where(data==data.max())][0]
-        # y0_guess = y[np.where(data==data.max())][0]
-        #? 20261023, above may go wrong if there are two maximums. following not tested yet. A few runs seems good.
         y0_guess, x0_guess = np.unravel_index(np.argmax(data), data.shape)
         sigma_x_guess = 5  # Approximate width
         sigma_y_guess = 5
@@ -476,28 +394,17 @@ def fit_gaussian_2D(data, ls=False):
         return (model - data).ravel()
     
     p0 = init_guess(data)
-    if ls:
-        result = least_squares(residuals, p0, args=(data,), loss='linear', max_nfev=5000)
-        popt = result.x
-        # pcov is not directly available from least_squares, so we can estimate it from the Jacobian at the solution
-        J = result.jac
-        residual_variance = np.sum(result.fun**2) / (len(data.ravel()) - len(popt))
-        # pcov = np.linalg.inv(J.T @ J) * residual_variance
-        pcov = np.arange(25).reshape(5, 5) * residual_variance
-
-    else:
-        popt, pcov = curve_fit(Gaussian2D_xy, coordinate(data.shape), data.ravel(), p0=p0, maxfev=5000)
-
-        # perr = np.sqrt(np.diag(pcov))
+    popt, pcov = curve_fit(Gaussian2D_xy, coordinate(data.shape), data.ravel(), p0=p0, maxfev=5000)
 
     Amp, x0, y0, sigma_x, sigma_y, offset = popt
-    sigma = np.sqrt(sigma_x * sigma_y)
+    sigma = np.sqrt(np.abs(sigma_x * sigma_y))
     return Amp, x0, y0, sigma, offset, np.diag(pcov)[1:5], p0[1:4], pcov
 
 # %%
 def robust_gaussian_fit(x_data, y_data):
     """
     Fits Gaussian with multiple fallbacks. Returns (A, mu, sigma) or None.
+    Used in "width_of_pos_ratio.py," 
     """
     def gaussian(x, A, mu, sigma):
         return A * np.exp(-0.5 * (x - mu)**2 / sigma**2)

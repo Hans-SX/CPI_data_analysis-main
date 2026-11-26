@@ -29,28 +29,6 @@ def find_sigmas(imgpath):
     center_guess = gaussuan_2D_fit[6]
     return sigmas, cov, center, center_guess, gaussuan_2D_fit[7]
 
-"""
-r = 25 * 1e-3      # radius of the pinhole, assume Gaussian pinhole, the transmittance.
-f = 26.67           # focal length of the objective lens
-k = 2 * np.pi / (532 * 1e-6)  # wave number of the laser, wavelength = 532 nm
-
-The following three functions are the theoretical width of the refocused image when moving along z.
-
-def sigma_ideal(z):
-    # l -> infinity; sigma_c -> 0
-    return np.sqrt(z**2 / (2 * k**2 * r**2) + r**2 / 2)
-
-def sigma_coh(z, sigma_c):
-    # l -> infinity;
-    return np.sqrt(z**2 / (2 * k**2 * r**2) + r**2 / 2 * ((1 + sigma_c**2 / (2 * r**2)) / (1 + sigma_c**2 / (4 * r**2))))
-
-def sigma_lens(z, l):
-    # sigma_c -> 0
-    l_term = (f**2 + z**2) / (4 * k**2 * l**2)
-    r_term = r**2 / 2
-    z_term = ((1 + f/z)**2 / (2 * l**2) + (2 * k**2 * r**2) / z**2)**(-1)
-    return np.sqrt(l_term + r_term + z_term)
-"""
 #%%
 parser = argparse.ArgumentParser()
 parser.add_argument('--DataSet', type=str)
@@ -68,8 +46,8 @@ config = {}
 with open(config_file) as f:
     exec(f.read(), config)
 
-effect_size = config['binA'] * config['dpA']
-# effect_size = 1
+# effect_size = config['binA'] * config['dpA']
+effect_size = 1
 
 
 z_from_slope = np.load(join(refpath, 'z_from_slope.npz'))
@@ -84,7 +62,6 @@ if not os.path.exists(outpath):
 avg_z = z_from_slope['avg_z']
 z_from_x = z_from_slope['z_from_x']
 z_from_y = z_from_slope['z_from_y']
-# ref_pos = zip(avg_z, z_from_x, z_from_y)
 
 timer = Timer()
 timer.start("Sigma analysis of refocused images")
@@ -94,17 +71,14 @@ res = Parallel(n_jobs=-1, backend="loky")(delayed(find_sigmas)
 
 timer.stop("Sigma analysis of refocused images")
 sigmas_2D = np.array([res[i][0] for i in range(len(res))])
-# np.save(join(outpath, "sig"), sigmas_2D)
 sigmas_2D = sigmas_2D * effect_size
 cov = np.array([res[i][1] for i in range(len(res))])
 cov = cov * effect_size
 coord = np.array([res[i][2] for i in range(len(res))])
-# np.save(join(outpath, "coord"), coord)
 coord = coord * effect_size
 pcov = np.array([res[i][4] for i in range(len(res))])
 pcov = pcov * effect_size
 np.save(join(outpath, "pcov_analysis"), pcov)
-# sys.exit()
 err = np.sqrt(np.array(cov))
 err_cx = err[:, 0]
 err_cy = err[:, 1]
@@ -132,7 +106,6 @@ err_cx = err_cx[threshold]
 err_cy = err_cy[threshold]
 err_sig = err_sig[threshold]
 
-
 # Saturated frames.
 sat = np.load(join(os.getcwd(), os.pardir, args.DataSet, r"saturated_analysis\n_saturated_frames.npz"), allow_pickle=True)
 
@@ -150,15 +123,12 @@ strip_colors = cmap(norm(weights))
 
 fig_width, ax_width = plt.subplots()
 
-# ax_width.scatter(avg_z_th, abs(sigmas), label='Sigma fit')
-# ax_width.fill_between(avg_z_th, abs(sigmas) - err_sig, abs(sigmas) + err_sig, color='C0', alpha=0.2, label='Error')
 ax_width.errorbar(avg_z_th, abs(sigmas), yerr=err_sig, fmt='s', markersize=2, capsize=2)
 
 ax_width.set_xlabel('Axial position (mm)')
 ax_width.set_ylabel('Sigma of Gaussian fit (mm)')
 ax_width.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-# ax2 = ax_width.twinx()
-# ax2.errorbar(avg_z_th, abs(sigmas), yerr=err_sig, fmt='s', markersize=2, capsize=2)
+
 
 ax_width.set_title('Estimated width.')
 ax_width.vlines(sat_z, 0, 1, transform=ax_width.get_xaxis_transform(),
@@ -170,81 +140,56 @@ ax_width.legend(lines1, labels1, loc='lower right')
 plt.savefig(join(outpath, "estimated_width"), dpi='figure', transparent=False)
 
 time = range(len(coord_th[:, 0]))
-# r = kernel_smooth(time, coord_th[:, 0], yerr=err_cx, bw=4.0)
 tg, m, s, w = kernel_smooth(time, coord_th[:, 0], bw=4.0)
 
 fig, ax1 = plt.subplots()
-# fig, ax1 = plt.subplots(figsize=(8,5))
 ax1.set_xlabel('Time (s)')
 ax1.set_ylabel('Center coordinates of Gaussian fit (mm)')
 ax1.errorbar(range(coord_th[:,0].shape[0]), coord_th[:,0], yerr=err_cx, fmt='s', markersize=2, capsize=2, label='Center x')
-# ax1.scatter(range(coord_th[:,0].shape[0]), coord_th[:,0], label='Center x')
 
-# ax1.plot(r["t"], r["mean"], "k-", lw=2, label="Weighted mean", zorder=5)
-# ax1.fill_between(r["t"], r["mean"]-r["spread"], r["mean"]+r["spread"],
-#                 color="k", alpha=0.15, label="±1σ fluctuation")
-# ax1.fill_between(r["t"], r["mean"]-r["sem"], r["mean"]+r["sem"],
-#                 color="C3", alpha=0.5, label="±1σ of mean")
 ax1.plot(tg, m, color="k", lw=2, label="Smoothed mean", zorder=5)
 ax1.fill_between(tg, m - s, m + s, color="k", alpha=0.2,
                 label="±1σ fluctuation", zorder=4)
 
 ax1.grid(True, alpha=0.3)
 ax1.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-# ax2 = ax1.twinx()
-# ax2.set_ylabel('Axial position (mm)')
-# ax2.plot(time_platf, pos_platf, label='Platform position')
+
 
 lines1, labels1 = ax1.get_legend_handles_labels()
-# lines2, labels2 = ax2.get_legend_handles_labels()
 ax1.legend(lines1, labels1, loc='lower right')
-# ax1.legend(lines1 + lines2, labels1 + labels2, loc='lower right')
 
 
 ax1.vlines(frames, 0, 1, transform=ax1.get_xaxis_transform(),
           colors=strip_colors, linewidth=8, zorder=0)
 sm = cm.ScalarMappable(norm=norm, cmap=cmap)
 fig.colorbar(sm, ax=ax1, label='Saturated frames in proportion (%)')
-# fig.tight_layout()
 plt.savefig(join(outpath, "Center_x_of_sigma.png"), dpi='figure', transparent=False)
 plt.close("all")
 
 
 time = range(len(coord_th[:, 1]))
-# r = kernel_smooth(time, coord_th[:, 1], yerr=err_cy, bw=4.0)
 tg, m, s, w = kernel_smooth(time, coord_th[:, 1], bw=4.0)
 
 fig, ax1 = plt.subplots()
-# fig, ax1 = plt.subplots(figsize=(8,5))
 ax1.set_xlabel('Time (s)')
 ax1.set_ylabel('Center coordinates of Gaussian fit (mm)')
 ax1.errorbar(range(coord_th[:,1].shape[0]), coord_th[:,1], yerr=err_cy, fmt='s', markersize=2, capsize=2, label='Center y')
-# ax1.scatter(range(coord_th[:,1].shape[0]), coord_th[:,1], label='Center y')
-# ax1.plot(r["t"], r["mean"], "k-", lw=2, label="Weighted mean", zorder=5)
-# ax1.fill_between(r["t"], r["mean"]-r["spread"], r["mean"]+r["spread"],
-#                 color="k", alpha=0.15, label="±1σ fluctuation")
-# ax1.fill_between(r["t"], r["mean"]-r["sem"], r["mean"]+r["sem"],
-#                 color="C3", alpha=0.5, label="±1σ of mean")
+
 ax1.plot(tg, m, color="k", lw=2, label="Smoothed mean", zorder=5)
 ax1.fill_between(tg, m - s, m + s, color="k", alpha=0.2,
                 label="±1σ fluctuation", zorder=4)
 
 ax1.grid(True, alpha=0.3)
 ax1.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-# ax2 = ax1.twinx()
-# ax2.set_ylabel('Axial position (mm)')
-# ax2.plot(time_platf, pos_platf, label='Platform position')
+
 
 lines1, labels1 = ax1.get_legend_handles_labels()
-# lines2, labels2 = ax2.get_legend_handles_labels()
 ax1.legend(lines1, labels1, loc='lower right')
-# ax1.legend(lines1 + lines2, labels1 + labels2, loc='lower right')
 
 
 ax1.vlines(frames, 0, 1, transform=ax1.get_xaxis_transform(),
           colors=strip_colors, linewidth=8, zorder=0)
 sm = cm.ScalarMappable(norm=norm, cmap=cmap)
 fig.colorbar(sm, ax=ax1, label='Saturated frames in proportion (%)')
-# fig.tight_layout()
 plt.savefig(join(outpath, "Center_y_of_sigma.png"), dpi='figure', transparent=False)
 plt.close("all")
