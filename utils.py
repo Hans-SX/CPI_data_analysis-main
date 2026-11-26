@@ -491,7 +491,7 @@ def fit_gaussian_2D(data, ls=False):
         # perr = np.sqrt(np.diag(pcov))
 
     Amp, x0, y0, sigma_x, sigma_y, offset = popt
-    sigma = np.sqrt(sigma_x * sigma_y)
+    sigma = np.sqrt(np.abs(sigma_x * sigma_y))
     return Amp, x0, y0, sigma, offset, np.diag(pcov)[1:5], p0[1:4], pcov
 
 # %%
